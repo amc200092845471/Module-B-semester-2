@@ -1,0 +1,307 @@
+# import os
+# from pathlib import Path
+# import numpy as np
+# import pandas as pd
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+
+# import kagglehub
+# from sklearn.impute import SimpleImputer
+# from sklearn.preprocessing import OrdinalEncoder
+
+# # 1. Download & load Cribo dataset\cribo_path = kagglehub.dataset_download("teamincribo/cyber-security-attacks")
+# cribo_dfs = []
+# for root, _, files in os.walk(cribo_path):
+#     for fname in files:
+#         if fname.lower().endswith(".csv"):
+#             fp = Path(root) / fname
+#             print(f"Loading Cribo file: {fp}")
+#             cribo_dfs.append(pd.read_csv(fp))
+# cribo_df = pd.concat(cribo_dfs, ignore_index=True)
+
+# # 2. Impute missing values
+# numeric_cols     = cribo_df.select_dtypes(include=[np.number]).columns
+# categorical_cols = cribo_df.select_dtypes(include=['object', 'category']).columns
+# cribo_df[numeric_cols]     = SimpleImputer(strategy='median').fit_transform(cribo_df[numeric_cols])
+# cribo_df[categorical_cols] = SimpleImputer(strategy='most_frequent').fit_transform(cribo_df[categorical_cols])
+
+# # 3. Encode categorical columns
+# encoder = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+# cribo_df[categorical_cols] = encoder.fit_transform(cribo_df[categorical_cols])
+
+# # 4. Save cleaned Cribo data to Excel in output directory
+# output_dir = Path.cwd() / "output"
+# output_dir.mkdir(exist_ok=True)
+# excel_path = output_dir / "cribo_clean.xlsx"
+# cribo_df.to_excel(excel_path, index=False)
+# print(f"✅ Cleaned Cribo dataset saved to {excel_path}")
+
+# # 5. Perform EDA on Cribo dataset
+# print("\n=== Cribo Dataset Info ===")
+# cribo_df.info()
+
+# # Missing/Unique/Dtype summary
+# data_summary = pd.DataFrame({
+#     'missing': cribo_df.isnull().sum(),
+#     'unique':  cribo_df.nunique(),
+#     'dtype':   cribo_df.dtypes
+# }).reset_index().rename(columns={'index':'column'})
+# print("\n=== Missing / Unique / Dtype Summary ===")
+# print(data_summary)
+
+# # Descriptive statistics for numeric columns
+# print("\n=== Descriptive Statistics (Numeric) ===")
+# print(cribo_df[numeric_cols].describe())
+
+# # Plot: Distribution of Attack Type
+# if 'Attack Type' in cribo_df.columns:
+#     plt.figure(figsize=(8,4))
+#     sns.countplot(data=cribo_df, x='Attack Type', palette='pastel')
+#     plt.title('Distribution of Attack Type')
+#     plt.xlabel('Attack Type')
+#     plt.ylabel('Count')
+#     plt.xticks(rotation=45)
+#     plt.tight_layout()
+#     plt.show()
+
+# # Plot: Top 10 values for five smallest-cardinality categorical columns
+# cat_cardinality = cribo_df.select_dtypes(include=['object', 'category']).nunique()
+# smallest_cats = cat_cardinality.sort_values().head(5).index
+# for col in smallest_cats:
+#     plt.figure(figsize=(8,4))
+#     top_vals = cribo_df[col].value_counts().head(10)
+#     sns.barplot(y=top_vals.index, x=top_vals.values, palette='muted')
+#     plt.title(f"Top 10 values of {col}")
+#     plt.xlabel('Count')
+#     plt.ylabel(col)
+#     plt.tight_layout()
+#     plt.show()
+
+# # Plot: Histograms + KDE for first five numeric columns
+# for col in numeric_cols[:5]:
+#     plt.figure(figsize=(8,4))
+#     sns.histplot(cribo_df[col], kde=True, bins=30)
+#     plt.title(f"Histogram + KDE for {col}")
+#     plt.xlabel(col)
+#     plt.ylabel('Frequency')
+#     plt.tight_layout()
+#     plt.show()
+
+# # Plot: Correlation heatmap of numeric features
+# plt.figure(figsize=(10,8))
+# corr = cribo_df[numeric_cols].corr()
+# sns.heatmap(corr, cmap='coolwarm', center=0)
+# plt.title('Correlation Heatmap (Cribo)')
+# plt.tight_layout()
+# plt.show()
+
+# import numpy as np
+# import pandas as pd
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+# from sklearn.decomposition import PCA
+
+# # -------------------------------------------------
+# # 0. Assumption: cribo_df is already prepared
+# #     (no nulls, categorical columns encoded numerically)
+# # -------------------------------------------------
+# # If you need to reload from the Excel we saved:
+# # cribo_df = pd.read_excel("output/cribo_clean.xlsx")
+
+# # -------------------------------------------------
+# # 1. Correlation Heatmap
+# # -------------------------------------------------
+# numeric_cols = cribo_df.select_dtypes(include=[np.number]).columns
+# plt.figure(figsize=(12, 10))
+# corr = cribo_df[numeric_cols].corr()
+# sns.heatmap(corr, cmap="coolwarm", center=0, annot=False)
+# plt.title("Cribo Dataset – Numeric Feature Correlation Heatmap")
+# plt.tight_layout()
+# plt.show()
+
+# # -------------------------------------------------
+# # 2. Bubble Plots
+# # -------------------------------------------------
+# # Choose three variables: x, y, and size.
+# bubble_specs = [
+#     ("Destination Port", "Source Port", "Anomaly Scores"),
+#     ("Anomaly Scores",   "Severity Level", "Destination Port"),
+#     ("Source Port",      "Destination Port", "Severity Level"),
+# ]
+
+# for x, y, size in bubble_specs:
+#     if {x, y, size}.issubset(numeric_cols):
+#         sizes = (cribo_df[size] - cribo_df[size].min() + 1) / \
+#                 (cribo_df[size].max() - cribo_df[size].min() + 1) * 300
+#         plt.figure(figsize=(8, 6))
+#         plt.scatter(cribo_df[x], cribo_df[y], s=sizes, alpha=0.5, edgecolor="k")
+#         plt.xlabel(x)
+#         plt.ylabel(y)
+#         plt.title(f"Bubble Plot: {x} vs {y} (size ∝ {size})")
+#         plt.tight_layout()
+#         plt.show()
+
+# # -------------------------------------------------
+# # 3. Principal Component Analysis (PCA)
+# # -------------------------------------------------
+# # Keep only numeric columns for PCA
+# X = cribo_df[numeric_cols].values
+# pca = PCA()
+# X_pca = pca.fit_transform(X)
+
+# # Explained variance ratios
+# evr = pca.explained_variance_ratio_
+# print(f"Variance captured by PC1:  {evr[0]*100:.2f}%")
+# print(f"Variance captured by PC1+PC2: {evr[:2].sum()*100:.2f}%")
+
+# # Scree plot
+# plt.figure(figsize=(8, 5))
+# plt.bar(range(1, len(evr)+1), evr*100)
+# plt.xlabel("Principal Component")
+# plt.ylabel("Variance Explained (%)")
+# plt.title("PCA Scree Plot – Cribo Dataset")
+# plt.tight_layout()
+# plt.show()
+
+# # Projection onto the first principal component
+# plt.figure(figsize=(8, 4))
+# sns.histplot(X_pca[:, 0], kde=True, bins=40)
+# plt.title(f"Projection onto PC1 (captures {evr[0]*100:.1f}% variance)")
+# plt.xlabel("PC1 Score")
+# plt.ylabel("Frequency")
+# plt.tight_layout()
+# plt.show()
+
+import os
+from pathlib import Path
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+import kagglehub                             # pip install kagglehub
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.decomposition import PCA
+
+# -------------------------------------------------------------
+# 1. Download & load Cribo dataset
+# -------------------------------------------------------------
+cribo_path = kagglehub.dataset_download("teamincribo/cyber-security-attacks")
+
+cribo_frames = []
+for root, _, files in os.walk(cribo_path):
+    for fname in files:
+        if fname.lower().endswith(".csv"):
+            fp = Path(root) / fname
+            print(f"Loading: {fp}")
+            cribo_frames.append(pd.read_csv(fp))
+
+cribo_df = pd.concat(cribo_frames, ignore_index=True)
+print(f"\nLoaded {len(cribo_df):,} rows from Cribo CSVs")
+
+# -------------------------------------------------------------
+# 2. Impute missing values
+# -------------------------------------------------------------
+numeric_cols     = cribo_df.select_dtypes(include=[np.number]).columns
+categorical_cols = cribo_df.select_dtypes(include=['object', 'category']).columns
+
+cribo_df[numeric_cols]     = SimpleImputer(strategy="median").fit_transform(cribo_df[numeric_cols])
+cribo_df[categorical_cols] = SimpleImputer(strategy="most_frequent").fit_transform(cribo_df[categorical_cols])
+
+# -------------------------------------------------------------
+# 3. Encode categorical columns
+# -------------------------------------------------------------
+enc = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+cribo_df[categorical_cols] = enc.fit_transform(cribo_df[categorical_cols])
+
+# -------------------------------------------------------------
+# 4. Save cleaned Cribo data to Excel
+# -------------------------------------------------------------
+output_dir = Path.cwd() / "output"
+output_dir.mkdir(exist_ok=True)
+excel_path = output_dir / "cribo_clean.xlsx"
+cribo_df.to_excel(excel_path, index=False)
+print(f"✅ Cleaned Cribo dataset saved to {excel_path}")
+
+# -------------------------------------------------------------
+# 5. Quick EDA summaries
+# -------------------------------------------------------------
+print("\n=== Cribo Dataset Info ===")
+cribo_df.info()
+
+print("\n=== Missing / Unique / Dtype Summary ===")
+print(
+    pd.DataFrame({
+        "missing": cribo_df.isnull().sum(),
+        "unique":  cribo_df.nunique(),
+        "dtype":   cribo_df.dtypes
+    })
+    .sort_values("missing", ascending=False)
+    .head(15)
+)
+
+print("\n=== Descriptive Statistics (Numeric) ===")
+print(cribo_df[numeric_cols].describe())
+
+# -------------------------------------------------------------
+# 6. Correlation heatmap (numeric)
+# -------------------------------------------------------------
+plt.figure(figsize=(12, 10))
+sns.heatmap(cribo_df[numeric_cols].corr(), cmap="coolwarm", center=0)
+plt.title("Cribo – Numeric Feature Correlation Heatmap")
+plt.tight_layout()
+plt.show()
+
+# -------------------------------------------------------------
+# 7. Bubble plots (sample 4 000 rows to keep plot readable)
+# -------------------------------------------------------------
+sample = cribo_df.sample(n=min(4000, len(cribo_df)), random_state=42)
+
+bubble_specs = [
+    ("Destination Port", "Source Port", "Anomaly Scores"),
+    ("Anomaly Scores",   "Severity Level", "Destination Port"),
+    ("Severity Level",   "DnsResponseCode", "NumberOfAnswers"),
+]
+
+for x, y, size in bubble_specs:
+    if {x, y, size}.issubset(sample.columns):
+        sizes = sample[size]
+        # normalise bubble areas (20 – 300 px)
+        sizes = (sizes - sizes.min()) / (sizes.max() - sizes.min() + 1e-9) * 280 + 20
+        plt.figure(figsize=(8, 6))
+        plt.scatter(sample[x], sample[y], s=sizes,
+                    alpha=0.35, linewidth=0.3, edgecolor="k")
+        plt.xlabel(x); plt.ylabel(y)
+        plt.title(f"Bubble: {x} vs {y} (size ∝ {size})")
+        plt.tight_layout()
+        plt.show()
+
+# -------------------------------------------------------------
+# 8. Principal Component Analysis (PCA)
+# -------------------------------------------------------------
+X = cribo_df[numeric_cols].values
+pca = PCA()
+X_pca = pca.fit_transform(X)
+evr = pca.explained_variance_ratio_
+
+print(f"\nVariance captured by PC1:  {evr[0]*100:.2f}%")
+print(f"Variance captured by PC1+PC2: {(evr[:2].sum()*100):.2f}%")
+
+# Scree plot
+plt.figure(figsize=(8, 5))
+plt.bar(range(1, len(evr)+1), evr*100)
+plt.xlabel("Principal Component")
+plt.ylabel("Variance Explained (%)")
+plt.title("PCA Scree Plot – Cribo Dataset")
+plt.tight_layout()
+plt.show()
+
+# Projection onto first principal component
+plt.figure(figsize=(8, 4))
+sns.histplot(X_pca[:, 0], bins=40, kde=True)
+plt.title(f"PC1 Projection (captures {evr[0]*100:.1f}% variance)")
+plt.xlabel("PC1 Score")
+plt.ylabel("Frequency")
+plt.tight_layout()
+plt.show()

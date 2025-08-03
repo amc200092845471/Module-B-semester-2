@@ -305,3 +305,610 @@ plt.xlabel("PC1 Score")
 plt.ylabel("Frequency")
 plt.tight_layout()
 plt.show()
+
+
+# import os
+# from pathlib import Path
+# import numpy as np
+# import pandas as pd
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+
+# import kagglehub                      # pip install kagglehub
+# from sklearn.impute import SimpleImputer
+# from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+# from sklearn.decomposition import PCA
+# from sklearn.linear_model import LinearRegression
+# from sklearn.metrics import r2_score
+
+# RANDOM_STATE = 42
+# plt.style.use("seaborn-v0_8")
+
+
+# #Download + load Cribo CSVs
+
+# cribo_path = kagglehub.dataset_download("teamincribo/cyber-security-attacks")
+# dfs = []
+# for root, _, files in os.walk(cribo_path):
+#     for f in files:
+#         if f.lower().endswith(".csv"):
+#             dfs.append(pd.read_csv(Path(root) / f))
+# cribo = pd.concat(dfs, ignore_index=True)
+# print(f"Loaded {len(cribo):,} rows × {cribo.shape[1]} columns")
+
+
+# #Basic cleaning / impute / encode
+# num_cols = cribo.select_dtypes(include=[np.number]).columns
+# cat_cols = cribo.select_dtypes(include=['object', 'category']).columns
+
+# cribo[num_cols] = SimpleImputer(strategy="median").fit_transform(cribo[num_cols])
+# cribo[cat_cols] = SimpleImputer(strategy="most_frequent").fit_transform(cribo[cat_cols])
+# cribo[cat_cols] = OrdinalEncoder(
+#     handle_unknown="use_encoded_value", unknown_value=-1).fit_transform(cribo[cat_cols])
+
+# cribo["is_well_known_dest"] = (cribo["Destination Port"] < 1024).astype(int)
+# cribo["is_ephemeral_src"]   = (cribo["Source Port"]   > 49152).astype(int)
+# cribo["dest_bucket"] = pd.cut(
+#     cribo["Destination Port"],
+#     bins=[0, 1024, 49152, 65536],
+#     labels=[1, 2, 3]).astype(int)
+
+
+# #Heatmap of correlations (numeric)
+# #Correlation analysis – top pairs, thresholded & clustered
+# # Build correlation on numeric columns (Spearman)
+# num_cols = cribo.select_dtypes(include=[np.number]).columns
+# # Drop constant / near‑constant columns
+# nzv = cribo[num_cols].nunique()
+# num_cols = nzv[nzv > 1].index
+# data_num = cribo[num_cols]
+# corr = data_num.corr(method="spearman")
+
+# #Print top‑15 correlated pairs
+# corr_pairs = (
+#     corr.where(~np.eye(corr.shape[0], dtype=bool))  # remove diagonal
+#         .unstack()
+#         .dropna()
+#         .abs()
+#         .sort_values(ascending=False)
+# )
+# print("\n=== Top‑15 absolute correlations (Spearman) ===")
+# for (a, b), val in corr_pairs.head(15).items():
+#     print(f"{a:<25} ↔ {b:<25}  ρ = {val:.3f}")
+
+
+# # #Thresholded heat‑map
+# # THRESH = 0.10
+# # corr_thr = corr.copy()
+# # corr_thr[np.abs(corr_thr) < THRESH] = np.nan
+
+# # mask = np.triu(np.ones_like(corr_thr, dtype=bool))
+# # fig_w = max(8, 0.45 * corr_thr.shape[0])
+
+# # plt.figure(figsize=(fig_w, fig_w))
+# # sns.heatmap(corr_thr, mask=mask,
+# #             cmap="coolwarm", center=0,
+# #             linewidths=.4, linecolor="white",
+# #             square=True, cbar_kws={"shrink": .8},
+# #             annot=False)
+# # plt.title(f"Cribo – Correlations |ρ| ≥ {THRESH}")
+# # plt.tight_layout()
+# # plt.show()
+# # # Clustered heat‑map (dendrogram)
+# # sns.clustermap(corr,
+# #                cmap="coolwarm", center=0,
+# #                linewidths=.3, figsize=(10, 10),
+# #                cbar_kws={"shrink": .7})
+# # plt.suptitle("Cribo – Clustered Correlation Matrix", y=1.02)
+# # plt.show()
+
+
+# #Annotated zoom on most‑correlated features
+
+# TOP_N = 20
+# top_feats = pd.unique([i for i, _ in corr_pairs.head(TOP_N).index])
+# if len(top_feats) > 1:
+#     corr_zoom = corr.loc[top_feats, top_feats]
+#     plt.figure(figsize=(max(6, 0.6*len(top_feats)), 6))
+#     sns.heatmap(corr_zoom,
+#                 cmap="coolwarm", center=0,
+#                 annot=True, fmt=".2f",
+#                 square=True, linewidths=.5,
+#                 cbar_kws={"shrink": .8})
+#     plt.title("Zoom – Top‑correlated numeric features")
+#     plt.tight_layout()
+#     plt.show()
+# else:
+#     print("Not enough correlated features for zoom heat‑map.")
+
+# #Robust bubble plot – focus on busiest dest ports
+#     # Get top‑20 destination ports on full Cribo DF
+# N = 20
+# top_dest_ports = cribo["Destination Port"].value_counts().head(N).index
+
+# # B. Keep all rows hitting those dest ports
+# focus = cribo[cribo["Destination Port"].isin(top_dest_ports)]
+
+# #Sample up to 6 000 rows **after** filtering
+# sample_size = min(6000, len(focus))
+# if sample_size == 0:
+#     print("No data for selected port criteria. Falling back to hexbin.")
+# else:
+#     focus = focus.sample(n=sample_size, random_state=RANDOM_STATE)
+
+# #Plot branch
+# if len(focus) > 0:
+#     plt.figure(figsize=(9, 7))
+#     plt.scatter(focus["Destination Port"],
+#                 focus["Source Port"],
+#                 c=focus["Anomaly Scores"],
+#                 cmap="coolwarm",
+#                 s=40,
+#                 alpha=0.65,
+#                 edgecolor="k",
+#                 linewidth=0.25)
+#     plt.colorbar(label="Anomaly Score")
+#     plt.xscale("log"); plt.yscale("log")
+#     plt.xlabel("Destination Port (log)")
+#     plt.ylabel("Source Port (log)")
+#     plt.title("Top‑20 destination ports – colour = Anomaly Score")
+#     plt.tight_layout()
+#     plt.show()
+# else:
+#     # Fallback hexbin on entire sample (no dest filtering)
+#     sample = cribo.sample(n=min(6000, len(cribo)), random_state=RANDOM_STATE)
+#     plt.figure(figsize=(8, 6))
+#     hb = plt.hexbin(sample["Destination Port"],
+#                     sample["Source Port"],
+#                     gridsize=60, cmap="magma", mincnt=1)
+#     plt.colorbar(hb, label="Hit count")
+#     plt.xscale("log"); plt.yscale("log")
+#     plt.xlabel("Destination Port (log)"); plt.ylabel("Source Port (log)")
+#     plt.title("Port‑to‑Port density – fallback hexbin")
+#     plt.tight_layout()
+#     plt.show()
+
+# # # ---------- Option A: hexbin density (recommended) ----------
+# # plt.figure(figsize=(8,6))
+# # plt.hexbin(sample["Destination Port"],
+# #            sample["Source Port"],
+# #            gridsize=60, cmap="magma", mincnt=5)
+# # plt.colorbar(label="Hit count (log scale)")
+# # plt.xscale("log"); plt.yscale("log")
+# # plt.xlabel("Destination Port (log)"); plt.ylabel("Source Port (log)")
+# # plt.title("Port‑to‑Port traffic density – Cribo")
+# # plt.tight_layout(); plt.show()
+
+# # # ---------- Option B: top‑20 × top‑20 scatter, colour = anomalies ----------
+# # top_dest = sample["Destination Port"].value_counts().head(20).index
+# # top_src  = sample["Source Port"].value_counts().head(20).index
+# # sub = sample[sample["Destination Port"].isin(top_dest) &
+# #              sample["Source Port"].isin(top_src)]
+
+# # plt.figure(figsize=(9,7))
+# # plt.scatter(sub["Destination Port"], sub["Source Port"],
+# #             c=sub["Anomaly Scores"], cmap="coolwarm",
+# #             s=40, alpha=0.7, edgecolor="k", linewidth=0.3)
+# # plt.colorbar(label="Anomaly Score")
+# # plt.xlabel("Dest Port (Top‑20)"); plt.ylabel("Src Port (Top‑20)")
+# # plt.title("High‑frequency port pairs coloured by Anomaly Score")
+# # plt.tight_layout(); plt.show()
+
+# # # candidates that are usually present; drop any that are missing
+# # bubble_candidates = [
+# #     ("Destination Port", "Source Port", "Anomaly Scores"),
+# #     ("Anomaly Scores",   "Severity Level", "Destination Port"),
+# #     ("Severity Level",   "NumberOfAnswers", "Anomaly Scores"),
+# # ]
+# # for x, y, s in bubble_candidates:
+# #     if {x, y, s}.issubset(sample.columns):
+# #         sz = (sample[s] - sample[s].min()) / (sample[s].max()-sample[s].min()+1e-9)
+# #         sz = sz * 280 + 20
+# #         plt.figure(figsize=(8,6))
+# #         plt.scatter(sample[x], sample[y], s=sz,
+# #                     alpha=0.35, edgecolor="k", linewidth=0.25)
+# #         plt.xlabel(x); plt.ylabel(y)
+# #         plt.title(f"Bubble: {x} vs {y} (size∝{s})")
+# #         plt.tight_layout(); plt.show()
+# #     else:
+# #         print(f"Skipped bubble ({x},{y},{s}) – one or more columns missing.")
+# sample = cribo.sample(n=min(4000, len(cribo)), random_state=RANDOM_STATE)
+
+
+
+# # 5. PCA – variance & PC 1 projection
+
+# # X_scaled = StandardScaler().fit_transform(cribo[num_cols])
+# # pca = PCA().fit(X_scaled)
+# # evr = pca.explained_variance_ratio_
+
+# # print(f"PC1 captures {evr[0]*100:.2f}% variance")
+# # print(f"PC1+PC2 capture {(evr[:2].sum()*100):.2f}% variance")
+
+# # plt.figure(figsize=(8, 5))
+# # plt.bar(range(1, len(evr)+1), evr * 100)
+# # plt.xlabel("Principal Component")
+# # plt.ylabel("Variance Explained (%)")
+# # plt.title("PCA Scree Plot – Cribo")
+# # plt.tight_layout()
+# # plt.show()
+
+# # pc1_scores = pca.transform(X_scaled)[:, 0]
+# # plt.figure(figsize=(8, 4))
+# # sns.histplot(pc1_scores, bins=40, kde=True)
+# # plt.title(f"PC1 Score Distribution ({evr[0]*100:.1f}% variance)")
+# # plt.xlabel("PC1 score")
+# # plt.tight_layout()
+# # plt.show()
+
+# # 5. PCA – engineered features + scaled vs. raw comparison
+
+# #Print numeric cols going in
+# print("\nNumeric columns before engineering:", num_cols.tolist())
+
+# #Add engineered numeric features if they don't exist yet
+# if "is_well_known_dest" not in cribo.columns:
+#     cribo["is_well_known_dest"] = (cribo["Destination Port"] < 1024).astype(int)
+# if "is_ephemeral_src" not in cribo.columns:
+#     cribo["is_ephemeral_src"]   = (cribo["Source Port"]   > 49152).astype(int)
+
+# #Update numeric list and show it
+# num_cols = cribo.select_dtypes(include=[np.number]).columns
+# print("Numeric columns now used for PCA:", num_cols.tolist())
+# print("Total numeric columns:", len(num_cols))
+
+# #PCA with StandardScaler
+# X_scaled = StandardScaler().fit_transform(cribo[num_cols])
+# pca_scaled = PCA().fit(X_scaled)
+# evr_scaled = pca_scaled.explained_variance_ratio_
+
+# print(f"\n[Scaled]  PC1 captures {evr_scaled[0]*100:.2f}% variance")
+# print(f"[Scaled]  PC1+PC2 capture {(evr_scaled[:2].sum()*100):.2f}% variance")
+
+# plt.figure(figsize=(8, 5))
+# plt.bar(range(1, len(evr_scaled)+1), evr_scaled * 100, width=0.6)
+# plt.xticks(range(1, len(evr_scaled)+1))
+# plt.xlabel("Principal Component")
+# plt.ylabel("Variance Explained (%)")
+# plt.title("PCA Scree Plot – Scaled features")
+# plt.tight_layout()
+# plt.show()
+
+# #PCA on raw values (no scaling)
+# X_raw = cribo[num_cols].values
+# pca_raw = PCA().fit(X_raw)
+# evr_raw = pca_raw.explained_variance_ratio_
+
+# print(f"\n[Raw]     PC1 captures {evr_raw[0]*100:.2f}% variance")
+# print(f"[Raw]     PC1+PC2 capture {(evr_raw[:2].sum()*100):.2f}% variance")
+
+# plt.figure(figsize=(8, 5))
+# plt.bar(range(1, len(evr_raw)+1), evr_raw * 100, width=0.6, color="tab:orange")
+# plt.xticks(range(1, len(evr_raw)+1))
+# plt.xlabel("Principal Component")
+# plt.ylabel("Variance Explained (%)")
+# plt.title("PCA Scree Plot – Raw (un-scaled) features")
+# plt.tight_layout()
+# plt.show()
+
+# #Projection onto PC1 (scaled version)—only if variance looks meaningful
+# pc1_scores = pca_scaled.transform(X_scaled)[:, 0]
+# plt.figure(figsize=(8, 4))
+# sns.histplot(pc1_scores, bins=40, kde=True)
+# plt.title(f"PC1 score distribution – scaled ({evr_scaled[0]*100:.1f}% variance)")
+# plt.xlabel("PC1 score")
+# plt.tight_layout()
+# plt.show()
+
+# #Linear‑regression experiments
+
+# def lr_trial(df, target, predictors, n_feat=4):
+#     """Run a simple LinearRegression predicting <target> from the
+#     strongest n_feat correlated predictors in <predictors>.
+#     Skips gracefully if target or predictors are missing."""
+#     if target not in df.columns:
+#         print(f"Target '{target}' not found – skipped.")
+#         return
+#     avail = [f for f in predictors if f in df.columns and f != target]
+#     if not avail:
+#         print(f"No predictors found for '{target}' – skipped.")
+#         return
+#     top = df[avail].corrwith(df[target]).abs().nlargest(n_feat).index.tolist()
+#     model = LinearRegression().fit(df[top], df[target])
+#     r2 = model.score(df[top], df[target])
+#     print(f"{target:<18} ← {top}  |  R² = {r2:.3f}")
+
+
+# def run_lr_trials(df):
+#     numeric = df.select_dtypes(include=[np.number]).columns.tolist()
+#     targets = ["Anomaly Scores", "Severity Level", "NumberOfAnswers"]
+#     print("\n=== Linear‑Regression Trials ===")
+#     for tgt in targets:
+#         lr_trial(df, tgt, numeric)
+
+# #Call it:
+# run_lr_trials(cribo)
+
+# #Outlier check (IQR) on key variables
+# def iqr_outliers(series):
+#     q1, q3 = series.quantile([0.25, 0.75])
+#     iqr = q3 - q1
+#     return ((series < q1 - 1.5 * iqr) | (series > q3 + 1.5 * iqr)).sum()
+
+# outlier_candidates = ["Anomaly Scores", "Severity Level", "NumberOfAnswers"]
+# print("\n=== Outlier Counts (IQR method) ===")
+# for col in outlier_candidates:
+#     if col in cribo.columns:
+#         n_out = iqr_outliers(cribo[col])
+#         pct   = n_out / len(cribo) * 100
+#         print(f"{col:<16}: {n_out:>6,} ({pct:5.2f}%)")
+#     else:
+#         print(f"{col:<16}: column not found – skipped.")
+
+# #Conclusions
+# print("\n=== CONCLUSIONS ===")
+# print(f"• Correlation heatmap shows strong port‑to‑port relationships; anomaly "
+#       f"scores modestly correlated with severity.\n"
+#       f"• PCA reveals a single component already explains {evr[0]*100:.1f}% of "
+#       f"variance; two PCs > {(evr[:2].sum()*100):.1f}% -> good for 2‑D viz.\n"
+#       f"• Bubble plots highlight high‑anomaly traffic concentrated on a few "
+#       f"destination ports.\n"
+#       f"• Best linear R² when predicting 'Anomaly Scores' from {top4} ≈ "
+#       f"{LinearRegression().fit(cribo[top4], cribo[target]).score(cribo[top4], cribo[target]):.2f}.\n"
+#       f"• Outlier rate below 5 % for key fields; data quality acceptable.\n"
+#       f"⇒ Dataset is usable; tree/boosting models or PCA‑based anomaly "
+#       f"detection are logical next steps.")
+
+
+
+
+# import os
+# from pathlib import Path
+# import numpy as np
+# import pandas as pd
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+
+# import kagglehub                      # pip install kagglehub
+# from sklearn.impute import SimpleImputer
+# from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+# from sklearn.decomposition import PCA
+# from sklearn.linear_model import LinearRegression
+# from sklearn.metrics import r2_score
+
+# import pathlib, zipfile
+
+# # === IMAGE SAVING HELPERS ===
+# IMAGE_DIR = pathlib.Path("cribo_auto_plots")
+# IMAGE_DIR.mkdir(exist_ok=True)
+# _png_paths = []
+
+# def save_and_show(name=None, dpi=150):
+#     """Save current plt fig as PNG in IMAGE_DIR and show it inline."""
+#     if name is None:
+#         name = f"figure_{len(_png_paths)+1:03d}"
+#     fname = IMAGE_DIR / f"{name.replace(' ', '_')}.png"
+#     plt.savefig(fname, dpi=dpi, bbox_inches="tight")
+#     _png_paths.append(fname)
+#     plt.show()
+
+# def zip_all_figures(zip_name="cribo_figures.zip"):
+#     """Create a ZIP file containing all saved figure PNGs."""
+#     with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zf:
+#         for p in _png_paths:
+#             zf.write(p, p.name)
+#     print(f"\nSaved {len(_png_paths)} figures to {zip_name}")
+
+# # === YOUR SCRIPT STARTS HERE ===
+
+# RANDOM_STATE = 42
+# plt.style.use("seaborn-v0_8")
+
+# # Download + load Cribo CSVs
+# cribo_path = kagglehub.dataset_download("teamincribo/cyber-security-attacks")
+# dfs = []
+# for root, _, files in os.walk(cribo_path):
+#     for f in files:
+#         if f.lower().endswith(".csv"):
+#             dfs.append(pd.read_csv(Path(root) / f))
+# cribo = pd.concat(dfs, ignore_index=True)
+# print(f"Loaded {len(cribo):,} rows × {cribo.shape[1]} columns")
+
+# # Basic cleaning / impute / encode
+# num_cols = cribo.select_dtypes(include=[np.number]).columns
+# cat_cols = cribo.select_dtypes(include=['object', 'category']).columns
+
+# cribo[num_cols] = SimpleImputer(strategy="median").fit_transform(cribo[num_cols])
+# cribo[cat_cols] = SimpleImputer(strategy="most_frequent").fit_transform(cribo[cat_cols])
+# cribo[cat_cols] = OrdinalEncoder(
+#     handle_unknown="use_encoded_value", unknown_value=-1).fit_transform(cribo[cat_cols])
+
+# cribo["is_well_known_dest"] = (cribo["Destination Port"] < 1024).astype(int)
+# cribo["is_ephemeral_src"]   = (cribo["Source Port"]   > 49152).astype(int)
+# cribo["dest_bucket"] = pd.cut(
+#     cribo["Destination Port"],
+#     bins=[0, 1024, 49152, 65536],
+#     labels=[1, 2, 3]).astype(int)
+
+# # Heatmap of correlations (numeric)
+# num_cols = cribo.select_dtypes(include=[np.number]).columns
+# nzv = cribo[num_cols].nunique()
+# num_cols = nzv[nzv > 1].index
+# data_num = cribo[num_cols]
+# corr = data_num.corr(method="spearman")
+
+# # Print top‑15 correlated pairs
+# corr_pairs = (
+#     corr.where(~np.eye(corr.shape[0], dtype=bool))  # remove diagonal
+#         .unstack()
+#         .dropna()
+#         .abs()
+#         .sort_values(ascending=False)
+# )
+# print("\n=== Top‑15 absolute correlations (Spearman) ===")
+# for (a, b), val in corr_pairs.head(15).items():
+#     print(f"{a:<25} ↔ {b:<25}  ρ = {val:.3f}")
+
+# # Annotated zoom on most‑correlated features
+# TOP_N = 20
+# top_feats = pd.unique([i for i, _ in corr_pairs.head(TOP_N).index])
+# if len(top_feats) > 1:
+#     corr_zoom = corr.loc[top_feats, top_feats]
+#     plt.figure(figsize=(max(6, 0.6*len(top_feats)), 6))
+#     sns.heatmap(corr_zoom,
+#                 cmap="coolwarm", center=0,
+#                 annot=True, fmt=".2f",
+#                 square=True, linewidths=.5,
+#                 cbar_kws={"shrink": .8})
+#     plt.title("Zoom – Top‑correlated numeric features")
+#     plt.tight_layout()
+#     save_and_show("heatmap_top_correlated")
+# else:
+#     print("Not enough correlated features for zoom heat‑map.")
+
+# # Robust bubble plot – focus on busiest dest ports
+# N = 20
+# top_dest_ports = cribo["Destination Port"].value_counts().head(N).index
+# focus = cribo[cribo["Destination Port"].isin(top_dest_ports)]
+# sample_size = min(6000, len(focus))
+# if sample_size == 0:
+#     print("No data for selected port criteria. Falling back to hexbin.")
+# else:
+#     focus = focus.sample(n=sample_size, random_state=RANDOM_STATE)
+
+# if len(focus) > 0:
+#     plt.figure(figsize=(9, 7))
+#     plt.scatter(focus["Destination Port"],
+#                 focus["Source Port"],
+#                 c=focus["Anomaly Scores"],
+#                 cmap="coolwarm",
+#                 s=40,
+#                 alpha=0.65,
+#                 edgecolor="k",
+#                 linewidth=0.25)
+#     plt.colorbar(label="Anomaly Score")
+#     plt.xscale("log"); plt.yscale("log")
+#     plt.xlabel("Destination Port (log)")
+#     plt.ylabel("Source Port (log)")
+#     plt.title("Top‑20 destination ports – colour = Anomaly Score")
+#     plt.tight_layout()
+#     save_and_show("bubble_top20_ports")
+# else:
+#     sample = cribo.sample(n=min(6000, len(cribo)), random_state=RANDOM_STATE)
+#     plt.figure(figsize=(8, 6))
+#     hb = plt.hexbin(sample["Destination Port"],
+#                     sample["Source Port"],
+#                     gridsize=60, cmap="magma", mincnt=1)
+#     plt.colorbar(hb, label="Hit count")
+#     plt.xscale("log"); plt.yscale("log")
+#     plt.xlabel("Destination Port (log)"); plt.ylabel("Source Port (log)")
+#     plt.title("Port‑to‑Port density – fallback hexbin")
+#     plt.tight_layout()
+#     save_and_show("hexbin_port_to_port_density")
+
+# sample = cribo.sample(n=min(4000, len(cribo)), random_state=RANDOM_STATE)
+
+# # PCA – variance & PC 1 projection
+
+# print("\nNumeric columns before engineering:", num_cols.tolist())
+# if "is_well_known_dest" not in cribo.columns:
+#     cribo["is_well_known_dest"] = (cribo["Destination Port"] < 1024).astype(int)
+# if "is_ephemeral_src" not in cribo.columns:
+#     cribo["is_ephemeral_src"]   = (cribo["Source Port"]   > 49152).astype(int)
+
+# num_cols = cribo.select_dtypes(include=[np.number]).columns
+# print("Numeric columns now used for PCA:", num_cols.tolist())
+# print("Total numeric columns:", len(num_cols))
+
+# # PCA with StandardScaler
+# X_scaled = StandardScaler().fit_transform(cribo[num_cols])
+# pca_scaled = PCA().fit(X_scaled)
+# evr_scaled = pca_scaled.explained_variance_ratio_
+
+# print(f"\n[Scaled]  PC1 captures {evr_scaled[0]*100:.2f}% variance")
+# print(f"[Scaled]  PC1+PC2 capture {(evr_scaled[:2].sum()*100):.2f}% variance")
+
+# plt.figure(figsize=(8, 5))
+# plt.bar(range(1, len(evr_scaled)+1), evr_scaled * 100, width=0.6)
+# plt.xticks(range(1, len(evr_scaled)+1))
+# plt.xlabel("Principal Component")
+# plt.ylabel("Variance Explained (%)")
+# plt.title("PCA Scree Plot – Scaled features")
+# plt.tight_layout()
+# save_and_show("pca_scree_scaled")
+
+# # PCA on raw values (no scaling)
+# X_raw = cribo[num_cols].values
+# pca_raw = PCA().fit(X_raw)
+# evr_raw = pca_raw.explained_variance_ratio_
+
+# print(f"\n[Raw]     PC1 captures {evr_raw[0]*100:.2f}% variance")
+# print(f"[Raw]     PC1+PC2 capture {(evr_raw[:2].sum()*100):.2f}% variance")
+
+# plt.figure(figsize=(8, 5))
+# plt.bar(range(1, len(evr_raw)+1), evr_raw * 100, width=0.6, color="tab:orange")
+# plt.xticks(range(1, len(evr_raw)+1))
+# plt.xlabel("Principal Component")
+# plt.ylabel("Variance Explained (%)")
+# plt.title("PCA Scree Plot – Raw (un-scaled) features")
+# plt.tight_layout()
+# save_and_show("pca_scree_raw")
+
+# pc1_scores = pca_scaled.transform(X_scaled)[:, 0]
+# plt.figure(figsize=(8, 4))
+# sns.histplot(pc1_scores, bins=40, kde=True)
+# plt.title(f"PC1 score distribution – scaled ({evr_scaled[0]*100:.1f}% variance)")
+# plt.xlabel("PC1 score")
+# plt.tight_layout()
+# save_and_show("pca_pc1_score_dist")
+
+# def lr_trial(df, target, predictors, n_feat=4):
+#     if target not in df.columns:
+#         print(f"Target '{target}' not found – skipped.")
+#         return
+#     avail = [f for f in predictors if f in df.columns and f != target]
+#     if not avail:
+#         print(f"No predictors found for '{target}' – skipped.")
+#         return
+#     top = df[avail].corrwith(df[target]).abs().nlargest(n_feat).index.tolist()
+#     model = LinearRegression().fit(df[top], df[target])
+#     r2 = model.score(df[top], df[target])
+#     print(f"{target:<18} ← {top}  |  R² = {r2:.3f}")
+
+# def run_lr_trials(df):
+#     numeric = df.select_dtypes(include=[np.number]).columns.tolist()
+#     targets = ["Anomaly Scores", "Severity Level", "NumberOfAnswers"]
+#     print("\n=== Linear‑Regression Trials ===")
+#     for tgt in targets:
+#         lr_trial(df, tgt, numeric)
+
+# run_lr_trials(cribo)
+
+# def iqr_outliers(series):
+#     q1, q3 = series.quantile([0.25, 0.75])
+#     iqr = q3 - q1
+#     return ((series < q1 - 1.5 * iqr) | (series > q3 + 1.5 * iqr)).sum()
+
+# outlier_candidates = ["Anomaly Scores", "Severity Level", "NumberOfAnswers"]
+# print("\n=== Outlier Counts (IQR method) ===")
+# for col in outlier_candidates:
+#     if col in cribo.columns:
+#         n_out = iqr_outliers(cribo[col])
+#         pct   = n_out / len(cribo) * 100
+#         print(f"{col:<16}: {n_out:>6,} ({pct:5.2f}%)")
+#     else:
+#         print(f"{col:<16}: column not found – skipped.")
+
+# print("\n=== CONCLUSIONS ===")
+# print(f"• Correlation heatmap shows strong port‑to‑port relationships; anomaly "
+#       f"scores modestly correlated with severity.\n"
+#       f"• PCA reveals a single component already explains {evr_scaled[0]*100:.1f}% of "
+#       f"variance; two PCs > {(evr_scaled[:2].sum()*100):.1f}% -> good for 2‑D viz.\n"
+#       f"• Bubble plots highlight high‑anomaly traffic concentrated on a few "
+#       f"destination ports.\n"
+#       f"• Outlier rate below 5 % for key fields; data quality acceptable.\n"
+#       f"⇒ Dataset is usable; tree/boosting models or PCA‑based anomaly "
+#       f"detection are logical next steps.")
+
+# # === ZIP ALL FIGURES ===
+# zip_all_figures("cribo_figures.zip")
